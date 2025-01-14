@@ -1,6 +1,6 @@
 import re
 import argparse
-
+import os
 def main(proto_path, translations_path, output_path):
     with open(proto_path, "r") as proto_file:
         proto_content = proto_file.read()
@@ -21,5 +21,12 @@ if __name__ == "__main__":
     parser.add_argument("-o", metavar="OUTPUT_FILE", default=None, help="Path to the output translated file (default: translated_<proto_path>)")
 
     args = parser.parse_args()
-    output_path = args.output_path if args.output_path else f"translated_{args.proto_path}"
+
+    if "output_path" in args:
+        output_path = args.output_path
+    else:
+        output_dir = os.path.dirname(args.proto_path)
+        output_file = os.path.basename(args.proto_path)
+        output_path = os.path.join(output_dir, f"translated_{output_file}")
+
     main(args.proto_path, args.translations_path, output_path)

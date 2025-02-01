@@ -1,3 +1,5 @@
+#![allow(dead_code)] // TODO: Remove this
+
 #[repr(transparent)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ProtoName(usize);

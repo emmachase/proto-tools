@@ -1,6 +1,6 @@
 use ropey::Rope;
 use streaming_iterator::StreamingIterator;
-use tree_sitter::{Node, TextProvider, Query, QueryCursor, Parser};
+use tree_sitter::{Node, Parser, Query, QueryCursor, QueryMatches, TextProvider};
 use tree_sitter_proto::LANGUAGE;
 use std::collections::HashMap;
 
@@ -52,7 +52,7 @@ pub trait ExtractText {
 impl ExtractText for Node<'_> {
     fn text(&self, buffer: &RawBuffer) -> String {
         let byte_range = self.byte_range();
-        buffer.0.slice(byte_range.start..byte_range.end).to_string()
+        buffer.rope.slice(byte_range.start..byte_range.end).to_string()
     }
 }
 
@@ -63,11 +63,16 @@ impl ExtractText for Node<'_> {
 //     }
 // }
 
-pub struct RawBuffer(Rope);
+/// RawBuffer structure as used in main and macro
+pub struct RawBuffer {
+    pub rope: Rope,
+}
 
-impl From<String> for RawBuffer {
-    fn from(source: String) -> Self {
-        Self(Rope::from(source))
+impl RawBuffer {
+    pub fn from(source: String) -> Self {
+        Self {
+            rope: Rope::from_str(&source),
+        }
     }
 }
 
@@ -88,7 +93,7 @@ impl<'a> TextProvider<&'a [u8]> for RopeTextProvider<'a> {
 
     fn text(&mut self, node: Node) -> Self::I {
         let buffer_range = node.byte_range();
-        let slice = self.0.0.slice(buffer_range.start..buffer_range.end);
+        let slice = self.0.rope.slice(buffer_range.start..buffer_range.end);
 
         RopeByteChunks(slice.chunks())
     }
@@ -100,37 +105,25 @@ impl<'a> From<&'a RawBuffer> for RopeTextProvider<'a> {
     }
 }
 
-pub fn run_query<'tree>(
-    root_node: Node<'tree>,
-    query: &Query,
-    buffer: &RawBuffer,
-) -> Vec<HashMap<String, Node<'tree>>> {
-    let mut cursor = QueryCursor::new();
-
-    let text_provider = RopeTextProvider::from(buffer);
-
-    let mut results = Vec::new();
-    let capture_indexes: Vec<_> = query.capture_names()
-        .iter()
-        .filter_map(|&name| query.capture_index_for_name(name).map(|idx| (name, idx)))
-        .collect();
-    
-    let mut matches = cursor.matches(&query, root_node, text_provider);
-    while let Some(m) = matches.next() {
-        let mut capture_map = HashMap::new();
-        for &(name, index) in &capture_indexes {
-            if let Some(node) = m.nodes_for_capture_index(index).next() {
-                capture_map.insert(name.to_string(), node);
-            }
-        }
-        results.push(capture_map);
-    }
-
-    results
-}
-
+/// Creates a Tree-sitter Query from a string
 pub fn create_query(query_str: &str) -> Query {
+    // Assuming LANGUAGE is already defined and loaded
     Query::new(&tree_sitter_proto::LANGUAGE.into(), query_str).expect("Invalid query")
 }
 
+/// Runs a Tree-sitter Query against a node and buffer
+// pub fn run_query<'tree, 'query>(node: Node<'tree>, query: &'query Query, buffer: &'tree RawBuffer) -> QueryMatches<'query, 'tree, RopeTextProvider<'tree>, &'tree [u8]> {
+    
+// }
 
+/// Trait to execute a Tree-sitter query and populate the struct with captures.
+pub trait QueryExecutor<'tree> {
+    fn execute(node: Node<'tree>, buffer: &RawBuffer) -> Vec<Self>
+    where
+        Self: Sized;
+}
+
+// pub struct Capture<'a> {
+//     pub text: String,
+//     pub node: Node<'a>,
+// }

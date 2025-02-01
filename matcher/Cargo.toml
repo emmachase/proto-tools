@@ -8,6 +8,8 @@ ropey = "1.6.1"
 streaming-iterator = "0.1.9"
 tree-sitter = "0.24.7"
 tree-sitter-proto = "0.2.0"
+matcher_macros = { path = "../matcher_macros" }
+regex = "1.7.1"
 
 [build-dependencies]
 cc="*"

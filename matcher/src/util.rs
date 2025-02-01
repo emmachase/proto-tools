@@ -1,8 +1,5 @@
 use ropey::Rope;
-use streaming_iterator::StreamingIterator;
-use tree_sitter::{Node, Parser, Query, QueryCursor, QueryMatches, TextProvider};
-use tree_sitter_proto::LANGUAGE;
-use std::collections::HashMap;
+use tree_sitter::{Node, Query, TextProvider};
 
 pub trait TrimIndent {
     fn trim_indent(&self) -> String;
@@ -45,7 +42,6 @@ impl TrimIndent for &str {
 }
 
 pub trait ExtractText {
-    // fn extract_from_node(&self, node: &Node) -> String;
     fn text(&self, buffer: &RawBuffer) -> String;
 }
 
@@ -55,13 +51,6 @@ impl ExtractText for Node<'_> {
         buffer.rope.slice(byte_range.start..byte_range.end).to_string()
     }
 }
-
-// impl ExtractText for String {
-//     fn extract_from_node(&self, node: &Node) -> String {
-//         let byte_range = node.byte_range();
-//         self.get(byte_range.start..byte_range.end).unwrap_or_default().to_string()
-//     }
-// }
 
 /// RawBuffer structure as used in main and macro
 pub struct RawBuffer {
@@ -107,14 +96,8 @@ impl<'a> From<&'a RawBuffer> for RopeTextProvider<'a> {
 
 /// Creates a Tree-sitter Query from a string
 pub fn create_query(query_str: &str) -> Query {
-    // Assuming LANGUAGE is already defined and loaded
     Query::new(&tree_sitter_proto::LANGUAGE.into(), query_str).expect("Invalid query")
 }
-
-/// Runs a Tree-sitter Query against a node and buffer
-// pub fn run_query<'tree, 'query>(node: Node<'tree>, query: &'query Query, buffer: &'tree RawBuffer) -> QueryMatches<'query, 'tree, RopeTextProvider<'tree>, &'tree [u8]> {
-    
-// }
 
 /// Trait to execute a Tree-sitter query and populate the struct with captures.
 pub trait QueryExecutor<'tree> {
@@ -122,8 +105,3 @@ pub trait QueryExecutor<'tree> {
     where
         Self: Sized;
 }
-
-// pub struct Capture<'a> {
-//     pub text: String,
-//     pub node: Node<'a>,
-// }

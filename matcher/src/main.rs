@@ -4,51 +4,9 @@ mod util;
 use tree_sitter::Parser;
 use util::{QueryExecutor, RawBuffer, TrimIndent};
 use streaming_iterator::StreamingIterator;
-use matcher_macros::generate_query_struct;
+use matcher_macros::tree_sitter_query;
 
-// Define the Tree-sitter query
-// const MESSAGE_QUERY: &str = ;
-
-// Use the procedural macro to generate a struct based on the query captures
-generate_query_struct!("(message (message_name) @name) @message", MessageCaptures);
-
-// #[derive(Debug, Default)]
-// pub struct MessageCaptures<'tree> {
-//     pub name: ::std::option::Option<::tree_sitter::Node<'tree>>,
-//     pub message: ::std::option::Option<::tree_sitter::Node<'tree>>,
-// }
-// impl<'tree> crate::util::QueryExecutor<'tree> for MessageCaptures<'tree> {
-//     fn execute(
-//         node: ::tree_sitter::Node<'tree>,
-//         buffer: &crate::util::RawBuffer,
-//     ) -> ::std::vec::Vec<Self> {
-//         use crate::util::{create_query, ExtractText};
-//         let query = create_query("(message (message_name) @name) @message");
-//         let mut cursor = ::tree_sitter::QueryCursor::new();
-//         let mut captures = cursor
-//             .matches(&query, node, crate::util::RopeTextProvider::from(buffer));
-//         let mut result = ::std::vec::Vec::new();
-//         while let ::std::option::Option::Some(capture) = captures.next() {
-//             let mut fields = Self::default();
-//             let idx = query.capture_index_for_name("name").unwrap();
-//             if let ::std::option::Option::Some(node) = capture
-//                 .nodes_for_capture_index(idx)
-//                 .next()
-//             {
-//                 fields.name = ::std::option::Option::Some(node);
-//             }
-//             let idx = query.capture_index_for_name("message").unwrap();
-//             if let ::std::option::Option::Some(node) = capture
-//                 .nodes_for_capture_index(idx)
-//                 .next()
-//             {
-//                 fields.message = ::std::option::Option::Some(node);
-//             }
-//             result.push(fields);
-//         }
-//         result
-//     }
-// }
+tree_sitter_query!(MessageCaptures, "(message (message_name) @name) @message");
 
 fn main() {
     let mut parser = Parser::new();

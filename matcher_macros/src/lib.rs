@@ -1,12 +1,12 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput, LitStr, Ident, Token};
+use syn::{parse_macro_input, LitStr, Ident, Token};
 use syn::parse::{Parse, ParseStream, Result};
 use regex::Regex;
 
 /// Procedural macro to generate a struct with captures from a query and implement `QueryExecutor`.
 #[proc_macro]
-pub fn generate_query_struct(input: TokenStream) -> TokenStream {
+pub fn tree_sitter_query(input: TokenStream) -> TokenStream {
     // Parse the input tokens into our MacroInput structure
     let MacroInput { query, struct_name } = parse_macro_input!(input as MacroInput);
     
@@ -74,15 +74,16 @@ pub fn generate_query_struct(input: TokenStream) -> TokenStream {
 }
 
 struct MacroInput {
-    query: LitStr,
     struct_name: Ident,
+    query: LitStr,
 }
 
 impl Parse for MacroInput {
     fn parse(input: ParseStream) -> Result<Self> {
-        let query = input.parse()?;
-        input.parse::<Token![,]>()?;
         let struct_name = input.parse()?;
-        Ok(MacroInput { query, struct_name })
+        input.parse::<Token![,]>()?;
+        let query = input.parse()?;
+        
+        Ok(MacroInput { struct_name, query })
     }
-} 
+}

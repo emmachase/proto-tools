@@ -10,7 +10,27 @@ use matcher_macros::tree_sitter_query;
 
 tree_sitter_query! {
     IdentifierQuery("(identifier) @name")
-    MessageQuery("(message (message_name) @name) @message")
+    MessageQuery("(message (message_name) @name) @node")
+    FieldQuery("
+        (field
+            (type) @typ
+            (identifier) @name
+            (field_number) @number
+        ) @node
+
+        (map_field
+            (key_type) @key_type
+            (type) @value_type
+            (identifier) @name
+            (field_number) @number
+        ) @node
+    ")
+}
+
+impl<'tree> FieldQuery<'tree> {
+    fn is_map_field(&self) -> bool {
+        self.key_type.is_some()
+    }
 }
 
 fn main() {
@@ -27,11 +47,9 @@ fn main() {
         // WriteTo: 0x0500C7C0
         message DEEMDJICKGG {
             uint32 JNLOABDHEIH = 2;
-            uint32 OMPJKMGGKCM = 3;
             repeated string PPAMLEBAFPI = 4;
-            uint32 AMDCFNKCLEE = 11;
-            uint64 KHMIHMPCLJA = 9;
             PropExtraInfo CIEGHGBOIEO = 10;
+            map<string, float> APOCINBFAAB = 6;
         }
     ".trim_indent();
     let buffer = RawBuffer::from(source_code.clone());
@@ -56,4 +74,18 @@ fn main() {
     }
 
     println!("Identifier DB: {:?}", identifier_db);
+
+    let messages = MessageQuery::execute(root_node, &buffer);
+
+    for message in messages {
+        println!("Message: {:#}", message.node.unwrap());
+        let fields = FieldQuery::execute(message.node.unwrap(), &buffer);
+        for field in fields {
+            if field.is_map_field() {
+                println!("Field: {:#} map<{}, {}>", field.node.unwrap(), field.key_type.unwrap().text(&buffer), field.value_type.unwrap().text(&buffer));
+            } else {
+                println!("Field: {:#} {}", field.node.unwrap(), field.typ.unwrap().text(&buffer));
+            }
+        }
+    }
 }

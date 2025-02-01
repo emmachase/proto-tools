@@ -20,6 +20,8 @@ pub fn tree_sitter_query(input: TokenStream) -> TokenStream {
         let re = Regex::new(r"@(\w+)").unwrap();
         let captures: Vec<String> = re.captures_iter(&query_string)
             .map(|cap| cap[1].to_string())
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
             .collect();
     
         // Generate the fields for the struct

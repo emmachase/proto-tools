@@ -22,8 +22,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if "output_path" in args:
-        output_path = args.output_path
+    if args.o is not None:
+        output_path = args.o
     else:
         output_dir = os.path.dirname(args.proto_path)
         output_file = os.path.basename(args.proto_path)

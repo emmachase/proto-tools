@@ -1,0 +1,79 @@
+<proto> ::= <syntax> { <import> | <package> | <option> | <topLevelDef> | <emptyStatement> }
+<topLevelDef> ::= <message> | <enum> | <service>
+
+<source_file> ::= <syntax>? <edition>? (<import> | <package> | <option> | <enum> | <message> | <extend> | <service> | <empty_statement>)*
+
+<empty_statement> ::= ";"
+
+<edition> ::= "edition" "=" <string> ";"
+<syntax> ::= "syntax" "=" ("proto3" | "proto2") ";"
+
+<import> ::= "import" ("weak" | "public")? <string> ";"
+<package> ::= "package" <fullIdent> ";"
+
+<option> ::= "option" <_option_name> "=" <constant> ";"
+<_option_name> ::= (<identifier> | "(" <fullIdent> ")") ("." <identifier>)*
+
+<enum> ::= "enum" <enum_name> <enum_body>
+<enum_name> ::= <identifier>
+<enum_body> ::= "{" (<option> | <enum_field> | <empty_statement> | <reserved>)* "}"
+
+<enum_field> ::= <identifier> "=" "-"? <int_lit> ("[" <enum_value_option> ("," <enum_value_option>)* "]")? ";"
+<enum_value_option> ::= <_option_name> "=" <constant>
+
+<message> ::= "message" <message_name> <message_body>
+<message_body> ::= "{" (<field> | <enum> | <message> | <option> | <oneof> | <map_field> | <reserved> | <empty_statement>)* "}"
+<message_name> ::= <identifier>
+<extend> ::= "extend" <fullIdent> <message_body>
+
+<field> ::= ("optional" | "required")? "repeated"? <type> <identifier> "=" <field_number> ("[" <field_options> "]")? ";"
+<field_options> ::= <field_option> ("," <field_option>)*
+<field_option> ::= <_option_name> "=" <constant>
+
+<oneof> ::= "oneof" <identifier> "{" (<option> | <oneof_field> | <empty_statement>)* "}"
+<oneof_field> ::= <type> <identifier> "=" <field_number> ("[" <field_options> "]")? ";"
+
+<map_field> ::= "map" "<" <key_type> "," <type> ">" <identifier> "=" <field_number> ("[" <field_options> "]")? ";"
+<key_type> ::= "int32" | "int64" | "uint32" | "uint64" | "sint32" | "sint64" | "fixed32" | "fixed64" | "sfixed32" | "sfixed64" | "bool" | "string"
+
+<type> ::= "double" | "float" | "int32" | "int64" | "uint32" | "uint64" | "sint32" | "sint64" | "fixed32" | "fixed64" | "sfixed32" | "sfixed64" | "bool" | "string" | "bytes" | <message_or_enum_type>
+
+<reserved> ::= "reserved" (<ranges> | <fieldNames>) ";"
+<extensions> ::= "extensions" <ranges> ";"
+<ranges> ::= <range> ("," <range>)*
+<range> ::= <int_lit> ("to" (<int_lit> | "max"))?
+
+<field_names> ::= <_identifier_or_string> ("," <_identifier_or_string>)*
+<reserved_field_names> ::= <reserved_identifier> ("," <reserved_identifier>)*
+
+<message_or_enum_type> ::= ("." <identifier> ".")* <identifier>
+<field_number> ::= <int_lit>
+
+<service> ::= "service" <service_name> "{" (<option> | <rpc> | <empty_statement>)* "}"
+<service_name> ::= <identifier>
+
+<rpc> ::= "rpc" <rpc_name> "(" "stream"? <message_or_enum_type> ")" "returns" "(" "stream"? <message_or_enum_type> ")" ("{" (<option> | <empty_statement>)* "}" | ";")
+<rpc_name> ::= <identifier>
+
+<constant> ::= <fullIdent> | ("-" | "+")? <int_lit> | ("-" | "+")? <float_lit> | <string> | <bool> | <block_lit>
+<block_lit> ::= "{" (<identifier> ("[" <fullIdent> "]")? ":"? (<constant> | <array_of_constant>)* ("," | ";")?)* "}"
+
+<identifier> ::= <letter> (<letter> | <decimalDigit> | "_")*
+<reserved_identifier> ::= '"' <letter> (<letter> | <decimalDigit> | "_")* '"' | "'" <letter> (<letter> | <decimalDigit> | "_")* "'" | <letter> (<letter> | <decimalDigit> | "_")*
+<_identifier_or_string> ::= <identifier> | <string>
+
+<full_ident> ::= <identifier> ("." <identifier>)*
+<bool> ::= "true" | "false"
+<int_lit> ::= <decimal_lit> | <octal_lit> | <hex_lit>
+<decimal_lit> ::= "1" ... "9" <decimalDigit>*
+<octal_lit> ::= "0" <octalDigit>*
+<hex_lit> ::= "0" ("x" | "X") <hexDigit>*
+
+<float_lit> ::= (<decimals> "." <decimals>? <exponent>? | <decimals> <exponent> | "." <decimals> <exponent>?) | "inf" | "nan"
+<decimals> ::= <decimalDigit> <decimalDigit>*
+<exponent> ::= ("e" | "E") ("+" | "-")? <decimals>
+
+<string> ::= '"' (<[^"\\]+> | <escape_sequence>)* '"' | "'" (<[^'\\]+> | <escape_sequence>)* "'"
+<escape_sequence> ::= "\\" (<[^xuU]> | <\d{2,3}> | <x[0-9a-fA-F]{2,}> | <u[0-9a-fA-F]{4}> | <U[0-9a-fA-F]{8}>)
+
+<comment> ::= "//" <.*> | "/*" <[^*]*\*+([^/*][^*]*\*+)*> "/"

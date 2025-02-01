@@ -13,14 +13,14 @@ tree_sitter_query! {
     MessageQuery("(message (message_name) @name) @node")
     FieldQuery("
         (field
-            (type) @typ
+            (type _ @typ)
             (identifier) @name
             (field_number) @number
         ) @node
 
         (map_field
-            (key_type) @key_type
-            (type) @value_type
+            (key_type _ @key_type)
+            (type _ @value_type)
             (identifier) @name
             (field_number) @number
         ) @node
@@ -82,9 +82,9 @@ fn main() {
         let fields = FieldQuery::execute(message.node.unwrap(), &buffer);
         for field in fields {
             if field.is_map_field() {
-                println!("Field: {:#} map<{}, {}>", field.node.unwrap(), field.key_type.unwrap().text(&buffer), field.value_type.unwrap().text(&buffer));
+                println!("Field: {:#} map<{}, {}>", field.node.unwrap(), field.key_type.unwrap().kind(), field.value_type.unwrap().kind());
             } else {
-                println!("Field: {:#} {}", field.node.unwrap(), field.typ.unwrap().text(&buffer));
+                println!("Field: {:#} {} {}", field.node.unwrap(), field.typ.unwrap().text(&buffer), field.typ.unwrap().kind());
             }
         }
     }

@@ -77,6 +77,60 @@ pub fn tree_sitter_query(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
+// /// Derive macro for DebugWithName that uses Debug implementation
+// #[proc_macro_derive(DebugWithName)]
+// pub fn derive_debug_with_name(input: TokenStream) -> TokenStream {
+//     // Parse the input tokens into a DeriveInput
+//     let input = parse_macro_input!(input as syn::DeriveInput);
+//     let name = input.ident;
+
+//     let expanded = match input.data {
+//         syn::Data::Struct(data) => {
+//             // Add a check for DebugWithName trait bound
+//             let field_types = data.fields.iter().map(|field| &field.ty);
+//             let trait_check = quote! {
+//                 const _: () = {
+//                     trait AssertDebugWithName {
+//                         fn assert_debug_with_name() where Self: DebugWithName {}
+//                     }
+//                     impl<T: DebugWithName> AssertDebugWithName for T {}
+                    
+//                     fn assert_all() {
+//                         #(<#field_types as AssertDebugWithName>::assert_debug_with_name();)*
+//                     }
+//                 };
+//             };
+
+//             let fields = data.fields.iter().map(|field| {
+//                 let field_name = &field.ident;
+//                 quote! {
+//                     format!("{}: {}", stringify!(#field_name), self.#field_name.debug_with_name(db))
+//                 }
+//             });
+
+//             quote! {
+//                 #trait_check
+
+//                 impl DebugWithName for #name {
+//                     fn debug_with_name(&self, db: &ProtoDatabase) -> String {
+//                         let fields = vec![#(#fields),*];
+//                         format!("{} {{ {} }}", stringify!(#name), fields.join(", "))
+//                     }
+//                 }
+//             }
+//         },
+//         _ => {
+//             let err = syn::Error::new_spanned(
+//                 name.clone(),
+//                 "DebugWithName can only be derived for structs"
+//             );
+//             return TokenStream::from(err.to_compile_error());
+//         }
+//     };
+
+//     TokenStream::from(expanded)
+// }
+
 struct MacroInput {
     struct_name: Ident,
     _paren_token: syn::token::Paren,

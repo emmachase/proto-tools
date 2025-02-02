@@ -1,59 +1,60 @@
 #![allow(dead_code)] // TODO: Remove this
 
-use std::fmt;
+use std::{fmt::{self, Debug}, hash::Hash};
 
 use bimap::BiHashMap;
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct ProtoName<'db> {
+use crate::debug::DebugWithName;
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ProtoName {
     id: usize,
-    db: &'db BiHashMap<String, usize>,
 }
 
-impl<'db> ProtoName<'db> {
-    pub fn lookup(identifier_db: &'db BiHashMap<String, usize>, name: &str) -> Self {
-        Self { id: *identifier_db.get_by_left(name).unwrap(), db: identifier_db }
-    }
-
-    pub fn name(&self) -> &str {
-        self.db.get_by_right(&self.id).unwrap()
+impl DebugWithName for ProtoName {
+    fn debug_with_name(&self, db: &ProtoDatabase) -> String {
+        format!("ProtoName({} => {})", self.id, db.identifier_db.get_by_right(&self.id).unwrap_or(&"ERROR".to_string()))
     }
 }
 
-impl<'db> fmt::Debug for ProtoName<'db> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ProtoName({} => {})", self.id, self.name())
+impl ProtoName {
+    pub fn lookup(identifier_db: &BiHashMap<String, usize>, name: &str) -> Self {
+        Self { id: *identifier_db.get_by_left(name).unwrap() }
+    }
+
+    pub fn name<'a>(&self, db: &'a BiHashMap<String, usize>) -> &'a str {
+        db.get_by_right(&self.id).unwrap()
     }
 }
 
-impl<'db> fmt::Display for ProtoName<'db> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name())
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ProtoMessage {
+    pub name: ProtoName,
+    pub fields: Vec<ProtoField>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProtoMessage<'db> {
-    pub name: ProtoName<'db>,
-    pub fields: Vec<ProtoField<'db>>,
-}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProtoField<'db> {
-    pub name: ProtoName<'db>,
-    pub field_type: ProtoFieldKind<'db>,
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ProtoField {
+    pub name: ProtoName,
+    pub field_type: ProtoFieldKind,
     pub field_number: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ProtoFieldKind<'db> {
-    Scalar(ProtoType<'db>),
-    Map(Box<ProtoType<'db>>, Box<ProtoType<'db>>),
-    Repeated(Box<ProtoType<'db>>),
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+
+pub enum ProtoFieldKind {
+    Scalar(ProtoType),
+    Map(Box<ProtoType>, Box<ProtoType>),
+    Repeated(Box<ProtoType>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ProtoType<'db> {
+
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ProtoType {
     Bool,
     Float,
     Double,
@@ -61,7 +62,6 @@ pub enum ProtoType<'db> {
     Int64,
     Uint32,
     Uint64,
-
     Sint32,
     Sint64,
     Fixed32,
@@ -70,15 +70,53 @@ pub enum ProtoType<'db> {
     Sfixed64,
     String,
     Bytes,
-    Type(ProtoName<'db>), // message, enum, etc.
-    // Map(Box<ProtoType<'db>>, Box<ProtoType<'db>>),
+    Type(ProtoName),
 }
 
-// impl<'db> ProtoField<'db> {
-//     pub fn has_same_type(&self, other: &ProtoField<'db>) -> bool {
-//         self.field_type == other.field_type && self.repeated == other.repeated
-//     }
-// }
+
+
+pub struct ProtoDatabase {
+    pub identifier_counter: usize,
+    pub identifier_db: BiHashMap<String, usize>,
+    pub message_db: BiHashMap<ProtoName, ProtoMessage>,
+}
+
+
+impl Debug for ProtoDatabase {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ProtoDatabase {{ identifier_counter: {}, identifier_db: {}, message_db: {} }}", self.identifier_counter, self.identifier_db.debug_with_name(self), self.message_db.debug_with_name(self))
+    }
+}
+
+impl ProtoDatabase {
+    pub fn new() -> Self {
+
+        Self {
+            identifier_counter: 0,
+            identifier_db: BiHashMap::new(),
+            message_db: BiHashMap::new(),
+        }
+    }
+
+    pub fn register_identifier(&mut self, text: String) -> usize {
+        if let Some(&id) = self.identifier_db.get_by_left(&text) {
+            id
+        } else {
+            let id = self.identifier_counter;
+            self.identifier_db.insert(text, id);
+            self.identifier_counter += 1;
+            id
+        }
+    }
+
+    pub fn lookup_name(&self, text: &str) -> ProtoName {
+        ProtoName::lookup(&self.identifier_db, text)
+    }
+
+    pub fn register_message(&mut self, message: ProtoMessage) {
+        self.message_db.insert(message.name.clone(), message);
+    }
+}
 
 #[cfg(test)]
 mod tests {

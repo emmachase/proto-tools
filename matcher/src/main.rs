@@ -1,9 +1,9 @@
 mod prototype;
 mod util;
 
-use std::collections::HashMap;
-
-use tree_sitter::Parser;
+use bimap::BiHashMap;
+use prototype::{ProtoField, ProtoFieldKind, ProtoMessage, ProtoName, ProtoType};
+use tree_sitter::{Node, Parser};
 use util::{ExtractText, QueryExecutor, RawBuffer, TrimIndent};
 use streaming_iterator::StreamingIterator;
 use matcher_macros::tree_sitter_query;
@@ -13,6 +13,7 @@ tree_sitter_query! {
     MessageQuery("(message (message_name) @name) @node")
     FieldQuery("
         (field
+            \"repeated\"? @repeated
             (type _ @typ)
             (identifier) @name
             (field_number) @number
@@ -59,14 +60,14 @@ fn main() {
 
 
     let mut identifier_counter = 0;
-    let mut identifier_db = HashMap::new();
+    let mut identifier_db = BiHashMap::new();
 
     let identifiers = IdentifierQuery::execute(root_node, &buffer);
 
     for identifier in identifiers {
         if let Some(name) = identifier.name {
             let text = name.text(&buffer);
-            if !identifier_db.contains_key(&text) {
+            if !identifier_db.contains_left(&text) {
                 identifier_db.insert(text, identifier_counter);
                 identifier_counter += 1;
             }
@@ -78,14 +79,57 @@ fn main() {
     let messages = MessageQuery::execute(root_node, &buffer);
 
     for message in messages {
-        println!("Message: {:#}", message.node.unwrap());
+        let mut result = ProtoMessage {
+            name: ProtoName::lookup(&identifier_db, message.name.unwrap().text(&buffer).as_str()),
+            fields: Vec::new(),
+        };
+
         let fields = FieldQuery::execute(message.node.unwrap(), &buffer);
         for field in fields {
-            if field.is_map_field() {
-                println!("Field: {:#} map<{}, {}>", field.node.unwrap(), field.key_type.unwrap().kind(), field.value_type.unwrap().kind());
-            } else {
-                println!("Field: {:#} {} {}", field.node.unwrap(), field.typ.unwrap().text(&buffer), field.typ.unwrap().kind());
-            }
+
+            result.fields.push(ProtoField {
+                name: ProtoName::lookup(&identifier_db, field.name.unwrap().text(&buffer).as_str()),
+                field_type: {
+                    if field.is_map_field() {
+                        let key_type = get_simple_field_type(&field.key_type.unwrap(), &buffer, &identifier_db);
+                        let value_type = get_simple_field_type(&field.value_type.unwrap(), &buffer, &identifier_db);
+
+                        ProtoFieldKind::Map(Box::new(key_type), Box::new(value_type))
+                    } else {
+                        let field_type_scalar = get_simple_field_type(&field.typ.unwrap(), &buffer, &identifier_db);
+                        
+                        match field.repeated.is_some() {
+                            true => ProtoFieldKind::Repeated(Box::new(field_type_scalar)),
+                            false => ProtoFieldKind::Scalar(field_type_scalar),
+                        }
+                    }
+                },
+                field_number: field.number.unwrap().text(&buffer).parse().expect("Failed to parse field number"),
+            });
         }
+        
+        println!("Result: {:?}", result);
+    }
+}
+
+fn get_simple_field_type<'db>(type_node: &Node, buffer: &RawBuffer, identifier_db: &'db BiHashMap<String, usize>) -> ProtoType<'db> {
+    match type_node.kind() {
+        "bool" => ProtoType::Bool,
+        "float" => ProtoType::Float,
+        "double" => ProtoType::Double,
+        "int32" => ProtoType::Int32,
+        "int64" => ProtoType::Int64,
+        "uint32" => ProtoType::Uint32,
+        "uint64" => ProtoType::Uint64,
+        "sint32" => ProtoType::Sint32,
+        "sint64" => ProtoType::Sint64,
+        "fixed32" => ProtoType::Fixed32,
+        "fixed64" => ProtoType::Fixed64,
+        "sfixed32" => ProtoType::Sfixed32,
+        "sfixed64" => ProtoType::Sfixed64,
+        "string" => ProtoType::String,
+        "bytes" => ProtoType::Bytes,
+        "message_or_enum_type" => ProtoType::Type(ProtoName::lookup(&identifier_db, type_node.text(&buffer).as_str())),
+        _ => panic!("Unknown type: {}", type_node.kind()),
     }
 }

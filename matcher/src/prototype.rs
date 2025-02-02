@@ -8,7 +8,7 @@ use matcher_macros::DebugWithName;
 use crate::debug::DebugWithName;
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ProtoName {
     id: usize,
 }
@@ -36,7 +36,7 @@ pub struct ProtoMessage {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, DebugWithName)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, DebugWithName)]
 pub struct ProtoField {
     pub name: ProtoName,
     pub field_type: ProtoFieldKind,
@@ -44,14 +44,14 @@ pub struct ProtoField {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, DebugWithName)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, DebugWithName)]
 pub enum ProtoFieldKind {
     Scalar(ProtoType),
-    Map(Box<ProtoType>, Box<ProtoType>),
-    Repeated(Box<ProtoType>),
+    Map(ProtoType, ProtoType),
+    Repeated(ProtoType),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, DebugWithName)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, DebugWithName)]
 pub enum ProtoType {
     Bool,
     Float,
@@ -70,6 +70,92 @@ pub enum ProtoType {
     Bytes,
     Type(ProtoName),
 }
+
+#[derive(Debug, Clone, Copy, Eq)]
+pub struct WeakProtoType(ProtoType);
+
+impl From<ProtoType> for WeakProtoType {
+    fn from(value: ProtoType) -> Self {
+        WeakProtoType(value)
+    }
+}
+
+impl WeakProtoType {
+    pub fn into_inner(self) -> ProtoType {
+        self.0
+    }
+}
+
+impl PartialEq for WeakProtoType {
+
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.0, &other.0) {
+            (ProtoType::Type(_), ProtoType::Type(_)) => true, // We don't want to compare names
+
+            (a, b) => a == b,
+        }
+    }
+}
+
+impl Hash for WeakProtoType {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // We only consider the unique variant for the hash
+        std::mem::discriminant(&self.0).hash(state)
+    }
+}
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WeakProtoFieldKind {
+    Scalar(WeakProtoType),
+    Map(WeakProtoType, WeakProtoType),
+    Repeated(WeakProtoType),
+}
+
+impl WeakProtoFieldKind {
+    pub fn into_inner(self) -> ProtoFieldKind {
+        match self {
+            WeakProtoFieldKind::Scalar(a) => ProtoFieldKind::Scalar(a.into_inner()),
+            WeakProtoFieldKind::Map(a, b) => ProtoFieldKind::Map(a.into_inner(), b.into_inner()),
+            WeakProtoFieldKind::Repeated(a) => ProtoFieldKind::Repeated(a.into_inner()),
+        }
+    }
+}
+
+impl From<ProtoFieldKind> for WeakProtoFieldKind {
+    fn from(value: ProtoFieldKind) -> Self {
+
+        match value {
+            ProtoFieldKind::Scalar(a) => WeakProtoFieldKind::Scalar(a.into()),
+            ProtoFieldKind::Map(a, b) => WeakProtoFieldKind::Map(a.into(), b.into()),
+            ProtoFieldKind::Repeated(a) => WeakProtoFieldKind::Repeated(a.into()),
+        }
+    }
+}
+
+// impl<'a> PartialEq for WeakProtoFieldKind<'a> {
+//     fn eq(&self, other: &Self) -> bool {
+//         match (&self.0, &other.0) {
+//             (ProtoFieldKind::Scalar(a), ProtoFieldKind::Scalar(b)) => WeakProtoType(a) == WeakProtoType(b),
+//             (ProtoFieldKind::Map(a, b), ProtoFieldKind::Map(c, d)) => WeakProtoType(a) == WeakProtoType(c) && WeakProtoType(b) == WeakProtoType(d),
+//             (ProtoFieldKind::Repeated(a), ProtoFieldKind::Repeated(b)) => WeakProtoType(a) == WeakProtoType(b),
+//             _ => false,
+//         }
+//     }
+// }
+
+// impl<'a> Hash for WeakProtoFieldKind<'a> {
+//     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+//         match &self.0 {
+//             ProtoFieldKind::Scalar(a) => WeakProtoType(a).hash(state),
+//             ProtoFieldKind::Map(a, b) => {
+//                 WeakProtoType(a).hash(state);
+//                 WeakProtoType(b).hash(state);
+//             }
+//             ProtoFieldKind::Repeated(a) => WeakProtoType(a).hash(state),
+//         }
+//     }
+// }
 
 pub struct ProtoDatabase {
     pub identifier_counter: usize,
@@ -133,9 +219,8 @@ mod tests {
     
     #[test]
     fn test_type_eq() {
-        let map1 = ProtoFieldKind::Map(Box::new(ProtoType::String), Box::new(ProtoType::Uint32));
-        let map2 = ProtoFieldKind::Map(Box::new(ProtoType::String), Box::new(ProtoType::Uint32));
+        let map1 = ProtoFieldKind::Map(ProtoType::String, ProtoType::Uint32);
+        let map2 = ProtoFieldKind::Map(ProtoType::String, ProtoType::Uint32);
         assert_eq!(map1, map2);
     }
-
 }

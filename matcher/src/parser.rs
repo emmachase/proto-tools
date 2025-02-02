@@ -65,12 +65,12 @@ pub fn parse_proto(source_code: &str) -> ProtoDatabase {
                         let key_type = get_simple_field_type(&field.key_type.unwrap(), &buffer, &proto_db);
                         let value_type = get_simple_field_type(&field.value_type.unwrap(), &buffer, &proto_db);
 
-                        ProtoFieldKind::Map(Box::new(key_type), Box::new(value_type))
+                        ProtoFieldKind::Map(key_type, value_type)
                     } else {
                         let field_type_scalar = get_simple_field_type(&field.typ.unwrap(), &buffer, &proto_db);
                         
                         match field.repeated.is_some() {
-                            true => ProtoFieldKind::Repeated(Box::new(field_type_scalar)),
+                            true => ProtoFieldKind::Repeated(field_type_scalar),
                             false => ProtoFieldKind::Scalar(field_type_scalar),
                         }
                     }

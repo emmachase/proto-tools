@@ -133,6 +133,8 @@ impl Matcher {
                         if a_chunks.len() == 1 {
                             println!("Matched by occurrence: {}", dbg!(&self.proto_db_a, a_chunks[0]));
                         } else {
+                            // TODO: If type names are resolved, we can try to match based on that
+
                             println!("Ambiguous match by occurrence: {}", dbg!(&self.proto_db_a, a_chunks));
                         }
                     } else {

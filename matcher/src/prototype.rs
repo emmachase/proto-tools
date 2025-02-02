@@ -120,9 +120,14 @@ impl ProtoDatabase {
     pub fn register_message(&mut self, message: ProtoMessage) {
         self.message_db.insert(message.name.clone(), message);
     }
+
+    pub fn get_message(&self, name: &str) -> Option<&ProtoMessage> {
+        self.message_db.get_by_left(&ProtoName::lookup(&self, name))
+    }
 }
 
 #[cfg(test)]
+
 mod tests {
     use super::*;
     

@@ -11,6 +11,7 @@ tree-sitter-proto = "0.2.0"
 matcher_macros = { path = "../matcher_macros" }
 regex = "1.7.1"
 bimap = "0.6.3"
+itertools = "0.14.0"
 
 [build-dependencies]
 cc="*"

@@ -59,6 +59,12 @@ impl<V: DebugWithName> DebugWithName for Vec<V> {
     }
 }
 
+impl<V: DebugWithName> DebugWithName for &Vec<V> {
+    fn debug_with_name(&self, db: &ProtoDatabase) -> String {
+        (*self).debug_with_name(db)
+    }
+}
+
 impl<K: DebugWithName + Eq + Hash, V: DebugWithName + Eq + Hash> DebugWithName for HashMap<K, V> {
     fn debug_with_name(&self, db: &ProtoDatabase) -> String {
         let mut formatter = "{".to_string();

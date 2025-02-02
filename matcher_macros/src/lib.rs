@@ -117,9 +117,16 @@ pub fn derive_debug_with_name(input: TokenStream) -> TokenStream {
                         format!("{} {{ {} }}", stringify!(#name), fields.join(", "))
                     }
                 }
+
+                impl DebugWithName for &#name {
+                    fn debug_with_name(&self, db: &ProtoDatabase) -> String {
+                        (*self).debug_with_name(db)
+                    }
+                }
             }
         },
         syn::Data::Enum(data) => {
+
             let variants = data.variants.iter().map(|variant| {
                 let variant_name = &variant.ident;
                 match &variant.fields {

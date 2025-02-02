@@ -8,7 +8,7 @@ use matcher_macros::DebugWithName;
 use crate::debug::DebugWithName;
 
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct ProtoName {
     id: usize,
 }
@@ -51,7 +51,22 @@ pub enum ProtoFieldKind {
     Repeated(ProtoType),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, DebugWithName)]
+impl ProtoFieldKind {
+    pub fn inner_type(&self) -> &ProtoType {
+        match self {
+            ProtoFieldKind::Scalar(a) => a,
+            ProtoFieldKind::Map(_, b) => b,
+            ProtoFieldKind::Repeated(a) => a,
+        }
+    }
+
+    pub fn is_type_ref(&self) -> bool {
+        matches!(self.inner_type(), ProtoType::Type(_))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, DebugWithName, Ord, PartialOrd)]
+
 pub enum ProtoType {
     Bool,
     Float,
@@ -112,7 +127,7 @@ pub enum WeakProtoFieldKind {
     Repeated(WeakProtoType),
 }
 
-impl WeakProtoFieldKind {
+impl WeakProtoFieldKind {    
     pub fn into_inner(self) -> ProtoFieldKind {
         match self {
             WeakProtoFieldKind::Scalar(a) => ProtoFieldKind::Scalar(a.into_inner()),

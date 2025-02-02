@@ -1,23 +1,27 @@
 use bimap::BiHashMap;
 
-use crate::prototype::{ProtoDatabase, ProtoField, ProtoFieldKind, ProtoMessage, ProtoType};
+use crate::prototype::ProtoDatabase;
 use std::hash::Hash;
 
 pub trait DebugWithName {
     fn debug_with_name(&self, db: &ProtoDatabase) -> String;
 }
 
-impl DebugWithName for String {
-    fn debug_with_name(&self, _db: &ProtoDatabase) -> String {
-        format!("{}", self)
+macro_rules! impl_debug_with_name_display {
+    ($($t:ty),*) => {
+        $(
+            impl DebugWithName for $t {
+                fn debug_with_name(&self, _db: &ProtoDatabase) -> String {
+                    format!("{}", self)
+                }
+            }
+        )*
     }
 }
 
-impl DebugWithName for usize {
-    fn debug_with_name(&self, _db: &ProtoDatabase) -> String {
-        format!("{}", self)
-    }
-}
+impl_debug_with_name_display!(
+    String, usize, u32, u64, i32, i64, f32, f64, bool
+);
 
 impl<K: DebugWithName + Eq + Hash, V: DebugWithName + Eq + Hash> DebugWithName for BiHashMap<K, V> {
     fn debug_with_name(&self, db: &ProtoDatabase) -> String {
@@ -53,39 +57,4 @@ impl<V: DebugWithName> DebugWithName for Vec<V> {
 
         formatter
     }
-}
-
-
-// My types below
-
-impl DebugWithName for ProtoMessage {
-    fn debug_with_name(&self, db: &ProtoDatabase) -> String {
-        format!("ProtoMessage {{ name: {}, fields: {} }}", self.name.debug_with_name(db), self.fields.debug_with_name(db))
-    }
-}
-
-impl DebugWithName for ProtoField {
-    fn debug_with_name(&self, db: &ProtoDatabase) -> String {
-        format!("ProtoField {{ name: {}, field_type: {}, field_number: {} }}", self.name.debug_with_name(db), self.field_type.debug_with_name(db), self.field_number)
-    }
-}
-
-impl DebugWithName for ProtoFieldKind {
-    fn debug_with_name(&self, db: &ProtoDatabase) -> String {
-        match self {
-            ProtoFieldKind::Scalar(t) => format!("Scalar({})", t.debug_with_name(db)),
-            ProtoFieldKind::Map(k, v) => format!("Map({}, {})", k.debug_with_name(db), v.debug_with_name(db)),
-            ProtoFieldKind::Repeated(t) => format!("Repeated({})", t.debug_with_name(db)),
-        }
-    }
-}
-
-impl DebugWithName for ProtoType {
-    fn debug_with_name(&self, db: &ProtoDatabase) -> String {
-        match self {
-            ProtoType::Type(n) => format!("Type({})", n.debug_with_name(db)),
-            _ => format!("{:?}", self),
-        }
-    }
-
 }

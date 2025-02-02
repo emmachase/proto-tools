@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{parse_macro_input, LitStr, Ident};
 use syn::parse::{Parse, ParseStream, Result};
 use regex::Regex;
@@ -77,59 +77,112 @@ pub fn tree_sitter_query(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-// /// Derive macro for DebugWithName that uses Debug implementation
-// #[proc_macro_derive(DebugWithName)]
-// pub fn derive_debug_with_name(input: TokenStream) -> TokenStream {
-//     // Parse the input tokens into a DeriveInput
-//     let input = parse_macro_input!(input as syn::DeriveInput);
-//     let name = input.ident;
+/// Derive macro for DebugWithName that uses Debug implementation
+#[proc_macro_derive(DebugWithName)]
+pub fn derive_debug_with_name(input: TokenStream) -> TokenStream {
+    // Parse the input tokens into a DeriveInput
+    let input = parse_macro_input!(input as syn::DeriveInput);
+    let name = input.ident;
 
-//     let expanded = match input.data {
-//         syn::Data::Struct(data) => {
-//             // Add a check for DebugWithName trait bound
-//             let field_types = data.fields.iter().map(|field| &field.ty);
-//             let trait_check = quote! {
-//                 const _: () = {
-//                     trait AssertDebugWithName {
-//                         fn assert_debug_with_name() where Self: DebugWithName {}
-//                     }
-//                     impl<T: DebugWithName> AssertDebugWithName for T {}
+    let expanded = match input.data {
+        syn::Data::Struct(data) => {
+            // Add a check for DebugWithName trait bound
+            let field_types = data.fields.iter().map(|field| &field.ty);
+            let trait_check = quote! {
+                const _: () = {
+                    trait AssertDebugWithName {
+                        fn assert_debug_with_name() where Self: DebugWithName {}
+                    }
+                    impl<T: DebugWithName> AssertDebugWithName for T {}
                     
-//                     fn assert_all() {
-//                         #(<#field_types as AssertDebugWithName>::assert_debug_with_name();)*
-//                     }
-//                 };
-//             };
+                    fn assert_all() {
+                        #(<#field_types as AssertDebugWithName>::assert_debug_with_name();)*
+                    }
+                };
+            };
 
-//             let fields = data.fields.iter().map(|field| {
-//                 let field_name = &field.ident;
-//                 quote! {
-//                     format!("{}: {}", stringify!(#field_name), self.#field_name.debug_with_name(db))
-//                 }
-//             });
+            let fields = data.fields.iter().map(|field| {
+                let field_name = &field.ident;
+                quote! {
+                    format!("{}: {}", stringify!(#field_name), self.#field_name.debug_with_name(db))
+                }
+            });
 
-//             quote! {
-//                 #trait_check
+            quote! {
+                #trait_check
 
-//                 impl DebugWithName for #name {
-//                     fn debug_with_name(&self, db: &ProtoDatabase) -> String {
-//                         let fields = vec![#(#fields),*];
-//                         format!("{} {{ {} }}", stringify!(#name), fields.join(", "))
-//                     }
-//                 }
-//             }
-//         },
-//         _ => {
-//             let err = syn::Error::new_spanned(
-//                 name.clone(),
-//                 "DebugWithName can only be derived for structs"
-//             );
-//             return TokenStream::from(err.to_compile_error());
-//         }
-//     };
+                impl DebugWithName for #name {
+                    fn debug_with_name(&self, db: &ProtoDatabase) -> String {
+                        let fields = vec![#(#fields),*];
+                        format!("{} {{ {} }}", stringify!(#name), fields.join(", "))
+                    }
+                }
+            }
+        },
+        syn::Data::Enum(data) => {
+            let variants = data.variants.iter().map(|variant| {
+                let variant_name = &variant.ident;
+                match &variant.fields {
+                    syn::Fields::Unit => {
+                        quote! {
+                            #name::#variant_name => stringify!(#variant_name).to_string()
+                        }
+                    },
+                    syn::Fields::Named(fields) => {
+                        let field_names = fields.named.iter().map(|f| &f.ident);
+                        let field_prints = fields.named.iter().map(|f| {
+                            let fname = &f.ident;
+                            quote! {
+                                format!("{}: {}", stringify!(#fname), #fname.debug_with_name(db))
+                            }
+                        });
+                        quote! {
+                            #name::#variant_name { #(#field_names),* } => {
+                                let fields = vec![#(#field_prints),*];
+                                format!("{} {{ {} }}", stringify!(#variant_name), fields.join(", "))
+                            }
+                        }
+                    },
+                    syn::Fields::Unnamed(fields) => {
+                        let field_names = (0..fields.unnamed.len())
+                            .map(|i| format_ident!("field{}", i));
+                        let field_prints = (0..fields.unnamed.len()).map(|i| {
+                            let fname = format_ident!("field{}", i);
+                            quote! {
+                                #fname.debug_with_name(db)
+                            }
+                        });
+                        quote! {
+                            #name::#variant_name(#(#field_names),*) => {
+                                let fields = vec![#(#field_prints),*];
+                                format!("{}({})", stringify!(#variant_name), fields.join(", "))
+                            }
+                        }
+                    }
+                }
+            });
 
-//     TokenStream::from(expanded)
-// }
+            quote! {
+                impl DebugWithName for #name {
+                    fn debug_with_name(&self, db: &ProtoDatabase) -> String {
+                        match self {
+                            #(#variants),*
+                        }
+                    }
+                }
+            }
+        },
+        syn::Data::Union(_) => {
+            let err = syn::Error::new_spanned(
+                name.clone(),
+                "DebugWithName cannot be derived for unions"
+            );
+            return TokenStream::from(err.to_compile_error());
+        }
+    };
+
+    TokenStream::from(expanded)
+}
 
 struct MacroInput {
     struct_name: Ident,

@@ -3,6 +3,7 @@
 use std::{fmt::{self, Debug}, hash::Hash};
 
 use bimap::BiHashMap;
+use matcher_macros::DebugWithName;
 
 use crate::debug::DebugWithName;
 
@@ -28,14 +29,14 @@ impl ProtoName {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, DebugWithName)]
 pub struct ProtoMessage {
     pub name: ProtoName,
     pub fields: Vec<ProtoField>,
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, DebugWithName)]
 pub struct ProtoField {
     pub name: ProtoName,
     pub field_type: ProtoFieldKind,
@@ -43,17 +44,14 @@ pub struct ProtoField {
 }
 
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-
+#[derive(Debug, Clone, PartialEq, Eq, Hash, DebugWithName)]
 pub enum ProtoFieldKind {
     Scalar(ProtoType),
     Map(Box<ProtoType>, Box<ProtoType>),
     Repeated(Box<ProtoType>),
 }
 
-
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, DebugWithName)]
 pub enum ProtoType {
     Bool,
     Float,
@@ -72,8 +70,6 @@ pub enum ProtoType {
     Bytes,
     Type(ProtoName),
 }
-
-
 
 pub struct ProtoDatabase {
     pub identifier_counter: usize,

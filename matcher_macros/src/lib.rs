@@ -77,7 +77,7 @@ pub fn tree_sitter_query(input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-/// Derive macro for DebugWithName that uses Debug implementation
+/// Derive macro for DebugWithName that uses children's DebugWithName implementations
 #[proc_macro_derive(DebugWithName)]
 pub fn derive_debug_with_name(input: TokenStream) -> TokenStream {
     // Parse the input tokens into a DeriveInput

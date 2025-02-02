@@ -1,7 +1,7 @@
 use bimap::BiHashMap;
 
 use crate::prototype::ProtoDatabase;
-use std::hash::Hash;
+use std::{collections::HashMap, hash::Hash};
 
 pub trait DebugWithName {
     fn debug_with_name(&self, db: &ProtoDatabase) -> String;
@@ -56,5 +56,24 @@ impl<V: DebugWithName> DebugWithName for Vec<V> {
         formatter.push_str("]");
 
         formatter
+    }
+}
+
+impl<K: DebugWithName + Eq + Hash, V: DebugWithName + Eq + Hash> DebugWithName for HashMap<K, V> {
+    fn debug_with_name(&self, db: &ProtoDatabase) -> String {
+        let mut formatter = "{".to_string();
+        for (k, v) in self.iter() {
+            formatter.push_str(&format!("{}: {}, ", k.debug_with_name(db), v.debug_with_name(db)));
+        }
+
+        if formatter.len() > 1 {
+            formatter.pop();
+            formatter.pop();
+        }
+
+        formatter.push_str("}");
+
+        formatter
+
     }
 }

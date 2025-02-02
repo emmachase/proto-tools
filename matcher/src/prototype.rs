@@ -1,6 +1,6 @@
 #![allow(dead_code)] // TODO: Remove this
 
-use std::{fmt::{self, Debug}, hash::Hash};
+use std::{collections::HashMap, fmt::{self, Debug}, hash::Hash};
 
 use bimap::BiHashMap;
 use matcher_macros::DebugWithName;
@@ -20,12 +20,12 @@ impl DebugWithName for ProtoName {
 }
 
 impl ProtoName {
-    pub fn lookup(identifier_db: &BiHashMap<String, usize>, name: &str) -> Self {
-        Self { id: *identifier_db.get_by_left(name).unwrap() }
+    pub fn lookup(db: &ProtoDatabase, name: &str) -> Self {
+        Self { id: *db.identifier_db.get_by_left(name).unwrap() }
     }
 
-    pub fn name<'a>(&self, db: &'a BiHashMap<String, usize>) -> &'a str {
-        db.get_by_right(&self.id).unwrap()
+    pub fn name<'db>(&self, db: &'db ProtoDatabase) -> &'db str {
+        db.identifier_db.get_by_right(&self.id).unwrap()
     }
 }
 
@@ -74,9 +74,9 @@ pub enum ProtoType {
 pub struct ProtoDatabase {
     pub identifier_counter: usize,
     pub identifier_db: BiHashMap<String, usize>,
+    pub identifier_resolutions: HashMap<usize, bool>,
     pub message_db: BiHashMap<ProtoName, ProtoMessage>,
 }
-
 
 impl Debug for ProtoDatabase {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -86,12 +86,19 @@ impl Debug for ProtoDatabase {
 
 impl ProtoDatabase {
     pub fn new() -> Self {
-
         Self {
             identifier_counter: 0,
             identifier_db: BiHashMap::new(),
+            identifier_resolutions: HashMap::new(),
             message_db: BiHashMap::new(),
         }
+    }
+
+    fn guess_resolution(text: &str) -> bool {
+        !(
+            text.len() == 11 && 
+            text.chars().all(|c| c.is_ascii_uppercase())
+        )
     }
 
     pub fn register_identifier(&mut self, text: String) -> usize {
@@ -99,6 +106,7 @@ impl ProtoDatabase {
             id
         } else {
             let id = self.identifier_counter;
+            self.identifier_resolutions.insert(id, Self::guess_resolution(&text));
             self.identifier_db.insert(text, id);
             self.identifier_counter += 1;
             id
@@ -106,7 +114,7 @@ impl ProtoDatabase {
     }
 
     pub fn lookup_name(&self, text: &str) -> ProtoName {
-        ProtoName::lookup(&self.identifier_db, text)
+        ProtoName::lookup(&self, text)
     }
 
     pub fn register_message(&mut self, message: ProtoMessage) {

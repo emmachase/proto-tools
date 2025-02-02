@@ -70,6 +70,7 @@ fn main() {
     }
 
     println!("Identifier DB: {:?}", proto_db.identifier_db);
+    println!("Identifier Resolutions: {:?}", proto_db.identifier_resolutions);
 
     let messages = MessageQuery::execute(root_node, &buffer);
     for message in messages {

@@ -1,6 +1,6 @@
 #![allow(dead_code)] // TODO: Remove this
 
-use std::{collections::HashMap, fmt::{self, Debug}, hash::Hash};
+use std::{collections::HashMap, fmt::{self, Debug}, hash::Hash, sync::RwLock};
 
 use bimap::BiHashMap;
 use matcher_macros::DebugWithName;
@@ -15,17 +15,17 @@ pub struct ProtoName {
 
 impl DebugWithName for ProtoName {
     fn debug_with_name(&self, db: &ProtoDatabase) -> String {
-        format!("ProtoName({} => {})", self.id, db.identifier_db.get_by_right(&self.id).unwrap_or(&"ERROR".to_string()))
+        format!("ProtoName({} => {})", self.id, db.identifier_db.read().unwrap().get_by_right(&self.id).unwrap_or(&"ERROR".to_string()))
     }
 }
 
 impl ProtoName {
     pub fn lookup(db: &ProtoDatabase, name: &str) -> Self {
-        Self { id: *db.identifier_db.get_by_left(name).unwrap() }
+        Self { id: *db.identifier_db.read().unwrap().get_by_left(name).unwrap() }
     }
 
-    pub fn name<'db>(&self, db: &'db ProtoDatabase) -> &'db str {
-        db.identifier_db.get_by_right(&self.id).unwrap()
+    pub fn name(&self, db: &ProtoDatabase) -> String {
+        db.identifier_db.read().unwrap().get_by_right(&self.id).unwrap().clone()
     }
 }
 
@@ -35,6 +35,24 @@ pub struct ProtoMessage {
     pub fields: Vec<ProtoField>,
 }
 
+#[derive(Debug)]
+pub enum ProtoResolutionError {
+    TypeIsPrimitive,
+    TargetAlreadyResolved,
+    SourceNotResolved,
+}
+
+pub trait LogIfErr {
+    fn log_if_err(&self);
+}
+
+impl <T> LogIfErr for Result<T, ProtoResolutionError> {
+    fn log_if_err(&self) {
+        if let Err(e) = self {
+            println!("Warning: {:?}", e);
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, DebugWithName)]
 pub struct ProtoField {
@@ -43,8 +61,40 @@ pub struct ProtoField {
     pub field_number: u32,
 }
 
+impl ProtoField {
+    pub fn try_resolve_in(&self, self_db: &ProtoDatabase, other_db: &ProtoDatabase, other: &ProtoField) -> Result<(), ProtoResolutionError> {
+        // First try to resolve the field type
+        match self.field_type.inner_type().try_resolve_in(self_db, other_db, &other.field_type.inner_type()) {
+            Ok(_) => (),
+            Err(ProtoResolutionError::TypeIsPrimitive) => (),
+            Err(ProtoResolutionError::TargetAlreadyResolved) => (), // TODO: Verify that names match
+            Err(e) => return Err(e),
+        }
+
+        // Ensure source field is marked as resolved
+        if *self_db.identifier_resolutions.read().unwrap().get(&self.name.id).unwrap_or(&false) == false {
+            return Err(ProtoResolutionError::SourceNotResolved);
+        }
+
+        // Ensure target field is not marked as resolved
+        if *other_db.identifier_resolutions.read().unwrap().get(&other.name.id).unwrap_or(&false) {
+            return Err(ProtoResolutionError::TargetAlreadyResolved);
+        }
+
+        // Update target field name
+        println!("Resolving field {} -> {}", self.name.debug_with_name(self_db), other.name.debug_with_name(other_db));
+        other_db.identifier_db.write().unwrap().insert(self_db.identifier_db.read().unwrap().get_by_right(&self.name.id).unwrap().clone(), other.name.id);
+
+        // Mark the target field as resolved
+        other_db.identifier_resolutions.write().unwrap().insert(other.name.id, true);
+
+        Ok(())
+
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, DebugWithName)]
+
 pub enum ProtoFieldKind {
     Scalar(ProtoType),
     Map(ProtoType, ProtoType),
@@ -84,6 +134,34 @@ pub enum ProtoType {
     String,
     Bytes,
     Type(ProtoName),
+}
+
+impl ProtoType {
+    pub fn try_resolve_in(&self, self_db: &ProtoDatabase, other_db: &ProtoDatabase, other: &ProtoType) -> Result<(), ProtoResolutionError> {
+        match (self, other) {
+            (ProtoType::Type(name), ProtoType::Type(other_name)) => {
+                // Ensure the source type is marked as resolved
+                if *self_db.identifier_resolutions.read().unwrap().get(&name.id).unwrap_or(&false) == false {
+                    return Err(ProtoResolutionError::SourceNotResolved);
+                }
+
+                // Ensure the target type is not marked as resolved
+                if *other_db.identifier_resolutions.read().unwrap().get(&other_name.id).unwrap_or(&false) {
+                    return Err(ProtoResolutionError::TargetAlreadyResolved);
+                }
+
+                // Update target type name
+                println!("Resolving type {} -> {}", name.debug_with_name(self_db), other_name.debug_with_name(other_db));
+                other_db.identifier_db.write().unwrap().insert(self_db.identifier_db.read().unwrap().get_by_right(&name.id).unwrap().clone(), other_name.id);
+
+                // Mark the target type as resolved
+                other_db.identifier_resolutions.write().unwrap().insert(other_name.id, true);
+
+                return Ok(());
+            }
+            _ => Err(ProtoResolutionError::TypeIsPrimitive),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Eq)]
@@ -174,14 +252,14 @@ impl From<ProtoFieldKind> for WeakProtoFieldKind {
 
 pub struct ProtoDatabase {
     pub identifier_counter: usize,
-    pub identifier_db: BiHashMap<String, usize>,
-    pub identifier_resolutions: HashMap<usize, bool>,
-    pub message_db: BiHashMap<ProtoName, ProtoMessage>,
+    pub identifier_db: RwLock<BiHashMap<String, usize>>,
+    pub identifier_resolutions: RwLock<HashMap<usize, bool>>,
+    pub message_db: RwLock<BiHashMap<ProtoName, ProtoMessage>>,
 }
 
 impl Debug for ProtoDatabase {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ProtoDatabase {{ identifier_counter: {}, identifier_db: {}, message_db: {} }}", self.identifier_counter, self.identifier_db.debug_with_name(self), self.message_db.debug_with_name(self))
+        write!(f, "ProtoDatabase {{ identifier_counter: {}, identifier_db: {}, message_db: {} }}", self.identifier_counter, self.identifier_db.read().unwrap().len(), self.message_db.read().unwrap().len())
     }
 }
 
@@ -189,9 +267,9 @@ impl ProtoDatabase {
     pub fn new() -> Self {
         Self {
             identifier_counter: 0,
-            identifier_db: BiHashMap::new(),
-            identifier_resolutions: HashMap::new(),
-            message_db: BiHashMap::new(),
+            identifier_db: RwLock::new(BiHashMap::new()),
+            identifier_resolutions: RwLock::new(HashMap::new()),
+            message_db: RwLock::new(BiHashMap::new()),
         }
     }
 
@@ -203,12 +281,14 @@ impl ProtoDatabase {
     }
 
     pub fn register_identifier(&mut self, text: String) -> usize {
-        if let Some(&id) = self.identifier_db.get_by_left(&text) {
+        let mut idb = self.identifier_db.write().unwrap();
+
+        if let Some(&id) = idb.get_by_left(&text) {
             id
         } else {
             let id = self.identifier_counter;
-            self.identifier_resolutions.insert(id, Self::guess_resolution(&text));
-            self.identifier_db.insert(text, id);
+            self.identifier_resolutions.write().unwrap().insert(id, Self::guess_resolution(&text));
+            idb.insert(text, id);
             self.identifier_counter += 1;
             id
         }
@@ -219,11 +299,11 @@ impl ProtoDatabase {
     }
 
     pub fn register_message(&mut self, message: ProtoMessage) {
-        self.message_db.insert(message.name.clone(), message);
+        self.message_db.write().unwrap().insert(message.name.clone(), message);
     }
 
-    pub fn get_message(&self, name: &str) -> Option<&ProtoMessage> {
-        self.message_db.get_by_left(&ProtoName::lookup(&self, name))
+    pub fn get_message(&self, name: &str) -> Option<ProtoMessage> {
+        self.message_db.read().unwrap().get_by_left(&ProtoName::lookup(&self, name)).map(|m| m.clone())
     }
 }
 

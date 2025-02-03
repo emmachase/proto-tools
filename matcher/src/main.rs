@@ -4,7 +4,7 @@ mod prototype;
 mod util;
 
 use itertools::Itertools;
-use prototype::{ProtoDatabase, ProtoField, ProtoFieldKind, ProtoName, ProtoType, WeakProtoFieldKind, WeakProtoType};
+use prototype::{ProtoDatabase, ProtoField, ProtoFieldKind, WeakProtoFieldKind, LogIfErr};
 use util::TrimIndent;
 use std::collections::HashMap;
 use crate::debug::DebugWithName;
@@ -60,11 +60,19 @@ fn main() {
 
     let mut matcher = Matcher::new(proto_db_a, proto_db_b);
     matcher.static_match("TestMessage");
+
+    println!("{:?}", matcher.into_db_b().identifier_db.read().unwrap());
 }
 
 struct Matcher {
     proto_db_a: ProtoDatabase,
     proto_db_b: ProtoDatabase,
+}
+
+impl Matcher {
+    fn into_db_b(self) -> ProtoDatabase {
+        self.proto_db_b
+    }
 }
 
 impl Matcher {
@@ -90,7 +98,6 @@ impl Matcher {
 
         // Check by weak type first
         for (type_name, fields_b) in &fields_by_strong_type_b {
-
             if let Some(fields_a_weak) = fields_by_weak_type_a.get(&WeakProtoFieldKind::from(*type_name)) {
                 // TODO: Remove resolved field_names from consideration
 
@@ -100,6 +107,9 @@ impl Matcher {
                     if fields_a_weak.len() == 1 {
                         println!("Matched unique fields by weak type:");
                         println!("  {} -> {}", dbg!(&self.proto_db_a, fields_a_weak[0].name), dbg!(&self.proto_db_b, fields_b[0].name));
+
+                        fields_a_weak[0].try_resolve_in(&self.proto_db_a, &self.proto_db_b, fields_b[0]).log_if_err();
+
                         continue;
                     }
                 }
@@ -110,8 +120,6 @@ impl Matcher {
                     //   But occurrences count must be unique, otherwise it's ambiguous
                     //   e.g. 2 occurrences of type A, 2 occurrences of type B -> ambiguous
                     //     But if in the same message there is only 1 occurrance of type C, then that one can be decided
-                    
-                    // TODO: Match occurrence patterns
 
                     // TODO: This can probably be done outside of the loop
                     let a_chunks = fields_a_weak
@@ -131,7 +139,20 @@ impl Matcher {
                     let len_b = fields_b.len();
                     if let Some(a_chunks) = a_chunks_by_occurrence.get(&len_b) {
                         if a_chunks.len() == 1 {
-                            println!("Matched by occurrence: {}", dbg!(&self.proto_db_a, a_chunks[0]));
+                            if len_b == 1 {
+                                // Direct match
+                                println!("Direct match: {}", dbg!(&self.proto_db_a, a_chunks[0]));
+
+                                a_chunks[0][0].try_resolve_in(&self.proto_db_a, &self.proto_db_b, fields_b[0]).log_if_err();
+                            } else {
+                                // Can resolve type, but field names can only be resolved by data-match
+                                println!("Occurrence match requires data-match: {}", dbg!(&self.proto_db_a, a_chunks[0]));
+
+                                for field in &a_chunks[0] {
+                                    let b_type = fields_b[0].field_type.inner_type();
+                                    field.field_type.inner_type().try_resolve_in(&self.proto_db_a, &self.proto_db_b, &b_type).log_if_err();
+                                }
+                            }
                         } else {
                             // TODO: If type names are resolved, we can try to match based on that
 

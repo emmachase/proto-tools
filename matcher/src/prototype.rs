@@ -225,30 +225,6 @@ impl From<ProtoFieldKind> for WeakProtoFieldKind {
     }
 }
 
-// impl<'a> PartialEq for WeakProtoFieldKind<'a> {
-//     fn eq(&self, other: &Self) -> bool {
-//         match (&self.0, &other.0) {
-//             (ProtoFieldKind::Scalar(a), ProtoFieldKind::Scalar(b)) => WeakProtoType(a) == WeakProtoType(b),
-//             (ProtoFieldKind::Map(a, b), ProtoFieldKind::Map(c, d)) => WeakProtoType(a) == WeakProtoType(c) && WeakProtoType(b) == WeakProtoType(d),
-//             (ProtoFieldKind::Repeated(a), ProtoFieldKind::Repeated(b)) => WeakProtoType(a) == WeakProtoType(b),
-//             _ => false,
-//         }
-//     }
-// }
-
-// impl<'a> Hash for WeakProtoFieldKind<'a> {
-//     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-//         match &self.0 {
-//             ProtoFieldKind::Scalar(a) => WeakProtoType(a).hash(state),
-//             ProtoFieldKind::Map(a, b) => {
-//                 WeakProtoType(a).hash(state);
-//                 WeakProtoType(b).hash(state);
-//             }
-//             ProtoFieldKind::Repeated(a) => WeakProtoType(a).hash(state),
-//         }
-//     }
-// }
-
 pub struct ProtoDatabase {
     pub identifier_counter: usize,
     pub identifier_db: BiHashMap<String, usize>,

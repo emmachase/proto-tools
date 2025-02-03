@@ -181,16 +181,16 @@ impl Matcher {
                             }
                         } else {
                             // TODO: If type names are resolved, we can try to match based on that
+                            
+                            // TODO: When ambiguous, try to match subtype structures to resolve (only if structures are unique)
+                            //       For now, we should not allow variation in structure for resolution. 
+                            //       In the future, we can maybe implement confidence-based fuzzy match for sub-structures
 
                             println!("Ambiguous match by occurrence: {}", dbg!(&self.proto_db_a, a_chunks));
                         }
                     } else {
                         println!("No match by occurrence: {}", dbg!(&self.proto_db_a, a_chunks_by_occurrence));
                     }
-
-                    // TODO: When ambiguous, try to match subtype structures to resolve (only if structures are unique)
-                    //       For now, we should not allow variation in structure for resolution. 
-                    //       In the future, we can maybe implement confidence-based fuzzy match for sub-structures
                 } else {
                     // Primitive type, can't be matched any further statically
                     println!("Primitive type with multiple fields, can't be matched any further statically: {}", dbg!(&self.proto_db_b, fields_b));

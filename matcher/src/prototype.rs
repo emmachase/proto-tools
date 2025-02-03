@@ -294,7 +294,11 @@ impl ProtoDatabase {
         }
     }
 
-    pub fn lookup_name(&self, text: &str) -> ProtoName {
+    pub fn is_resolved(&self, proto_name: &ProtoName) -> bool {
+        *self.identifier_resolutions.get(&proto_name.id).unwrap_or(&false)
+    }
+
+    pub fn lookup_name_by_text(&self, text: &str) -> ProtoName {
         ProtoName::lookup(&self, text)
     }
 

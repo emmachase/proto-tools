@@ -52,14 +52,14 @@ pub fn parse_proto(source_code: &str) -> ProtoDatabase {
     let messages = MessageQuery::execute(root_node, &buffer);
     for message in messages {
         let mut result = ProtoMessage {
-            name: proto_db.lookup_name(message.name.unwrap().text(&buffer).as_str()),
+            name: proto_db.lookup_name_by_text(message.name.unwrap().text(&buffer).as_str()),
             fields: Vec::new(),
         };
 
         let fields = FieldQuery::execute(message.node.unwrap(), &buffer);
         for field in fields {
             result.fields.push(ProtoField {
-                name: proto_db.lookup_name(field.name.unwrap().text(&buffer).as_str()),
+                name: proto_db.lookup_name_by_text(field.name.unwrap().text(&buffer).as_str()),
                 field_type: {
                     if field.is_map_field() {
                         let key_type = get_simple_field_type(&field.key_type.unwrap(), &buffer, &proto_db);
@@ -102,7 +102,7 @@ fn get_simple_field_type(type_node: &Node, buffer: &RawBuffer, proto_db: &ProtoD
         "sfixed64" => ProtoType::Sfixed64,
         "string" => ProtoType::String,
         "bytes" => ProtoType::Bytes,
-        "message_or_enum_type" => ProtoType::Type(proto_db.lookup_name(type_node.text(&buffer).as_str())),
+        "message_or_enum_type" => ProtoType::Type(proto_db.lookup_name_by_text(type_node.text(&buffer).as_str())),
         _ => panic!("Unknown type: {}", type_node.kind()),
     }
 }

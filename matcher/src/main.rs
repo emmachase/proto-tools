@@ -4,7 +4,7 @@ mod prototype;
 mod util;
 
 use itertools::Itertools;
-use prototype::{ProtoDatabase, ProtoField, ProtoFieldKind, WeakProtoFieldKind, LogIfErr};
+use prototype::{LogIfErr, ProtoDatabase, ProtoField, ProtoFieldKind, ProtoMessage, WeakProtoFieldKind};
 use util::TrimIndent;
 use std::collections::HashMap;
 use crate::debug::DebugWithName;
@@ -18,7 +18,7 @@ macro_rules! dbg {
 fn main() {
     let proto_a = "
         message SingleField {
-            uint32 field = 1;
+            uint32 number = 1;
         }
 
         message TestMessage {
@@ -35,7 +35,7 @@ fn main() {
 
     let proto_b = "
         message SingleField {
-            uint32 CCFNINDAOGJ = 53;
+            uint32 JNLOABDHEIH = 53;
             OQUREKAMCNF QWEUIFSDNAX = 4;
         }
 
@@ -59,6 +59,8 @@ fn main() {
     // println!("{:#?}", proto_db_b);
 
     let mut matcher = Matcher::new(proto_db_a, proto_db_b);
+
+    // TODO: Loop until no more matches are found
     matcher.static_match("SingleField");
     matcher.static_match("TestMessage");
 
@@ -91,9 +93,27 @@ impl Matcher {
         }
     }
 
+    fn remove_resolved_fields(&self, mut message_a: ProtoMessage, mut message_b: ProtoMessage) -> (ProtoMessage, ProtoMessage) {
+        let mut resolved_field_names = Vec::new();
+        for field in &message_b.fields {
+            if self.proto_db_b.is_resolved(&field.name) {
+                resolved_field_names.push(field.name.name(&self.proto_db_b));
+            }
+        }
+
+        // TODO: Probably a better way to do this
+        message_a.fields.retain(|field| !resolved_field_names.contains(&field.name.name(&self.proto_db_a)));
+        message_b.fields.retain(|field| !resolved_field_names.contains(&field.name.name(&self.proto_db_b)));
+
+        (message_a, message_b)
+    }
+
     fn static_match(&mut self, message_name: &str) {
         let message_a = self.proto_db_a.get_message(message_name).unwrap();
         let message_b = self.proto_db_b.get_message(message_name).unwrap();
+
+        // Remove fields that are already fully resolved in message_b
+        let (message_a, message_b) = self.remove_resolved_fields(message_a, message_b);
 
         // Group fields by their type
         let fields_by_weak_type_a = self.group_fields_by_weak_type(&message_a.fields);
@@ -107,8 +127,6 @@ impl Matcher {
         // Check by weak type first
         for (type_name, fields_b) in &fields_by_strong_type_b {
             if let Some(fields_a_weak) = fields_by_weak_type_a.get(&WeakProtoFieldKind::from(*type_name)) {
-                // TODO: Remove resolved field_names from consideration
-
                 // Check for the simple case where there is only one field of this type in the other proto
                 if fields_b.len() == 1 {
                     // Can directly match fields that are unique by weak type (only one Message or primitive for this type)

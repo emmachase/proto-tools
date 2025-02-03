@@ -19,7 +19,6 @@ fn main() {
     let proto_a = "
         message SingleField {
             uint32 field = 1;
-            DupStruct dup_struct = 11;
         }
 
         message TestMessage {
@@ -37,6 +36,7 @@ fn main() {
     let proto_b = "
         message SingleField {
             uint32 CCFNINDAOGJ = 53;
+            OQUREKAMCNF QWEUIFSDNAX = 4;
         }
 
         message TestMessage {
@@ -59,9 +59,17 @@ fn main() {
     // println!("{:#?}", proto_db_b);
 
     let mut matcher = Matcher::new(proto_db_a, proto_db_b);
+    matcher.static_match("SingleField");
     matcher.static_match("TestMessage");
 
-    println!("{:?}", matcher.into_db_b().identifier_db);
+    let name_translation = matcher.into_db_b().generate_nametranslation();
+
+    // Print translated proto_b
+    let mut translated_proto_b = proto_b.clone();
+    for (old_name, new_name) in name_translation {
+        translated_proto_b = translated_proto_b.replace(&old_name, &new_name);
+    }
+    println!("{}", translated_proto_b);
 }
 
 struct Matcher {
@@ -148,10 +156,10 @@ impl Matcher {
                                 // Can resolve type, but field names can only be resolved by data-match
                                 println!("Occurrence match requires data-match: {}", dbg!(&self.proto_db_a, a_chunks[0]));
 
-                                for field in &a_chunks[0] {
-                                    let b_type = fields_b[0].field_type.inner_type();
-                                    field.field_type.inner_type().try_resolve_in(&self.proto_db_a, &mut self.proto_db_b, &b_type).log_if_err();
-                                }
+                                // Only need to resolve first field's type since they are all the same type
+                                let first_field = &a_chunks[0][0];
+                                let b_type = fields_b[0].field_type.inner_type();
+                                first_field.field_type.inner_type().try_resolve_in(&self.proto_db_a, &mut self.proto_db_b, &b_type).log_if_err();
                             }
                         } else {
                             // TODO: If type names are resolved, we can try to match based on that

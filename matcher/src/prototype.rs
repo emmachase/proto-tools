@@ -252,13 +252,14 @@ impl From<ProtoFieldKind> for WeakProtoFieldKind {
 pub struct ProtoDatabase {
     pub identifier_counter: usize,
     pub identifier_db: BiHashMap<String, usize>,
+    pub identifier_db_original: BiHashMap<String, usize>,
     pub identifier_resolutions: HashMap<usize, bool>,
     pub message_db: BiHashMap<ProtoName, ProtoMessage>,
 }
 
 impl Debug for ProtoDatabase {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ProtoDatabase {{ identifier_counter: {}, identifier_db: {}, message_db: {} }}", self.identifier_counter, self.identifier_db.len(), self.message_db.len())
+        write!(f, "ProtoDatabase {{ identifier_counter: {}, identifier_db: {}, identifier_db_original: {}, message_db: {} }}", self.identifier_counter, self.identifier_db.len(), self.identifier_db_original.len(), self.message_db.len())
     }
 }
 
@@ -267,6 +268,7 @@ impl ProtoDatabase {
         Self {
             identifier_counter: 0,
             identifier_db: BiHashMap::new(),
+            identifier_db_original: BiHashMap::new(),
             identifier_resolutions: HashMap::new(),
             message_db: BiHashMap::new(),
         }
@@ -285,6 +287,7 @@ impl ProtoDatabase {
         } else {
             let id = self.identifier_counter;
             self.identifier_resolutions.insert(id, Self::guess_resolution(&text));
+            self.identifier_db_original.insert(text.clone(), id);
             self.identifier_db.insert(text, id);
             self.identifier_counter += 1;
             id
@@ -302,9 +305,14 @@ impl ProtoDatabase {
     pub fn get_message(&self, name: &str) -> Option<ProtoMessage> {
         self.message_db.get_by_left(&ProtoName::lookup(&self, name)).map(|m| m.clone())
     }
+
+    pub fn generate_nametranslation(&self) -> HashMap<String, String> {
+        self.identifier_db_original.iter().map(|(k, v)| (k.clone(), self.identifier_db.get_by_right(v).unwrap().clone())).collect()
+    }
 }
 
 #[cfg(test)]
+
 
 mod tests {
     use super::*;

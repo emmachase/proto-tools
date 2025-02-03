@@ -61,7 +61,7 @@ fn main() {
     let mut matcher = Matcher::new(proto_db_a, proto_db_b);
     matcher.static_match("TestMessage");
 
-    println!("{:?}", matcher.into_db_b().identifier_db.read().unwrap());
+    println!("{:?}", matcher.into_db_b().identifier_db);
 }
 
 struct Matcher {
@@ -108,7 +108,7 @@ impl Matcher {
                         println!("Matched unique fields by weak type:");
                         println!("  {} -> {}", dbg!(&self.proto_db_a, fields_a_weak[0].name), dbg!(&self.proto_db_b, fields_b[0].name));
 
-                        fields_a_weak[0].try_resolve_in(&self.proto_db_a, &self.proto_db_b, fields_b[0]).log_if_err();
+                        fields_a_weak[0].try_resolve_in(&self.proto_db_a, &mut self.proto_db_b, &fields_b[0]).log_if_err();
 
                         continue;
                     }
@@ -143,14 +143,14 @@ impl Matcher {
                                 // Direct match
                                 println!("Direct match: {}", dbg!(&self.proto_db_a, a_chunks[0]));
 
-                                a_chunks[0][0].try_resolve_in(&self.proto_db_a, &self.proto_db_b, fields_b[0]).log_if_err();
+                                a_chunks[0][0].try_resolve_in(&self.proto_db_a, &mut self.proto_db_b, &fields_b[0]).log_if_err();
                             } else {
                                 // Can resolve type, but field names can only be resolved by data-match
                                 println!("Occurrence match requires data-match: {}", dbg!(&self.proto_db_a, a_chunks[0]));
 
                                 for field in &a_chunks[0] {
                                     let b_type = fields_b[0].field_type.inner_type();
-                                    field.field_type.inner_type().try_resolve_in(&self.proto_db_a, &self.proto_db_b, &b_type).log_if_err();
+                                    field.field_type.inner_type().try_resolve_in(&self.proto_db_a, &mut self.proto_db_b, &b_type).log_if_err();
                                 }
                             }
                         } else {
@@ -177,27 +177,27 @@ impl Matcher {
         }
     }
 
-    fn group_fields_by_type<'a>(&'a self, fields: &'a [ProtoField]) -> HashMap<ProtoFieldKind, Vec<&'a ProtoField>> {
+    fn group_fields_by_type(&self, fields: &[ProtoField]) -> HashMap<ProtoFieldKind, Vec<ProtoField>> {
         let mut grouped = HashMap::new();
         for field in fields {
             grouped.entry(field.field_type.clone())
                 .or_insert_with(Vec::new)
-                .push(field);
+                .push(field.clone());
         }
         grouped
     }
 
-    fn group_fields_by_weak_type<'a>(&'a self, fields: &'a [ProtoField]) -> HashMap<WeakProtoFieldKind, Vec<&'a ProtoField>> {
+    fn group_fields_by_weak_type(&self, fields: &[ProtoField]) -> HashMap<WeakProtoFieldKind, Vec<ProtoField>> {
         let mut grouped = HashMap::new();
         for field in fields {
             grouped.entry(field.field_type.clone().into())
                 .or_insert_with(Vec::new)
-                .push(field);
+                .push(field.clone());
         }
 
         // Sort by type name
         for fields in grouped.values_mut() {
-            fields.sort_by_key(|field| field.field_type.inner_type());
+            fields.sort_by_key(|field| field.field_type.inner_type().clone());
         }
 
         grouped

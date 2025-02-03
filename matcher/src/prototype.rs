@@ -39,7 +39,7 @@ pub struct ProtoMessage {
 pub enum ProtoResolutionError {
     TypeIsPrimitive,
     TargetAlreadyResolved,
-    SourceNotResolved,
+    SourceNotResolved, // TODO: Probably shouldn't be an error
 }
 
 pub trait LogIfErr {

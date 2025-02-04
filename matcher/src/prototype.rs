@@ -1,6 +1,6 @@
 #![allow(dead_code)] // TODO: Remove this
 
-use std::{collections::HashMap, fmt::{self, Debug}, hash::Hash, mem::Discriminant, sync::RwLock};
+use std::{collections::HashMap, fmt::{self, Debug}, hash::Hash};
 
 use bimap::BiHashMap;
 use matcher_macros::DebugWithName;

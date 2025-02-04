@@ -4,7 +4,7 @@ mod prototype;
 mod util;
 
 use itertools::Itertools;
-use prototype::{LogIfErr, ProtoDatabase, ProtoField, ProtoFieldKind, ProtoMessage, WeakProtoFieldKind};
+use prototype::{ProtoDatabase, ProtoField, ProtoFieldKind, ProtoMessage, WeakProtoFieldKind};
 use util::TrimIndent;
 use std::collections::HashMap;
 use crate::debug::DebugWithName;
@@ -143,9 +143,9 @@ impl Matcher {
 
         // Group fields by their type
         let fields_by_weak_type_a = self.group_fields_by_weak_type(&message_a.fields);
-        let fields_by_weak_type_b = self.group_fields_by_weak_type(&message_b.fields);
+        // let fields_by_weak_type_b = self.group_fields_by_weak_type(&message_b.fields);
 
-        let fields_by_strong_type_a: Vec<_> = self.group_fields_by_type(&message_a.fields).into_iter().collect();
+        // let fields_by_strong_type_a: Vec<_> = self.group_fields_by_type(&message_a.fields).into_iter().collect();
         let fields_by_strong_type_b: Vec<_> = self.group_fields_by_type(&message_b.fields).into_iter().collect();
 
         // TODO: Even when we have a strong match, we should probably still check sub-type structure 

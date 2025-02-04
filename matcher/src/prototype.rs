@@ -1,6 +1,6 @@
 #![allow(dead_code)] // TODO: Remove this
 
-use std::{collections::HashMap, fmt::{self, Debug}, hash::Hash, sync::RwLock};
+use std::{collections::HashMap, fmt::{self, Debug}, hash::Hash, mem::Discriminant, sync::RwLock};
 
 use bimap::BiHashMap;
 use matcher_macros::DebugWithName;
@@ -112,6 +112,24 @@ impl ProtoFieldKind {
     pub fn is_type_ref(&self) -> bool {
         matches!(self.inner_type(), ProtoType::Type(_))
     }
+
+    pub fn eq_resolved_type(&self, self_db: &ProtoDatabase, other: &Self, other_db: &ProtoDatabase) -> bool {
+        // TODO: This is hacky, but it works for now
+        if std::mem::discriminant(self) != std::mem::discriminant(other) {
+            return false;
+        }
+
+        if let ProtoFieldKind::Map(a, _) = self {
+            if let ProtoFieldKind::Map(b, _) = other {
+                if a != b {
+                    return false;
+                }
+            }
+        }
+
+        self.inner_type().eq_resolved_type(self_db, other.inner_type(), other_db)
+    }
+
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, DebugWithName, Ord, PartialOrd)]
@@ -159,6 +177,18 @@ impl ProtoType {
                 return Ok(());
             }
             _ => Err(ProtoResolutionError::TypeIsPrimitive),
+        }
+    }
+
+    pub fn eq_resolved_type(&self, self_db: &ProtoDatabase, other: &Self, other_db: &ProtoDatabase) -> bool {
+        if let ProtoType::Type(name) = self {
+            if let ProtoType::Type(other_name) = other {
+                return self_db.is_resolved(name) && other_db.is_resolved(other_name) && name.name(self_db) == other_name.name(other_db);
+            } else {
+                return false;
+            }
+        } else {
+            return self == other;
         }
     }
 }

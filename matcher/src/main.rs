@@ -19,6 +19,7 @@ fn main() {
     let proto_a = "
         message SingleField {
             uint32 number = 1;
+            DupStruct dup_struct = 11;
         }
 
         message TestMessage {
@@ -45,7 +46,7 @@ fn main() {
             OQUREKAMCNF QWEUIFSDNAX = 4;
             OQUREKAMCNF PQIOSKXMANZ = 5;
             repeated string PPAMLEBAFPI = 6;
-            PropExtraInfo CIEGHGBOIEO = 3;
+            QPIWIALSKMX CIEGHGBOIEO = 3;
             AnotherInfo another_info = 16;
             map<string, float> APOCINBFAAB = 7;
             uint64 PDOQWIJLSAM = 9;
@@ -60,9 +61,19 @@ fn main() {
 
     let mut matcher = Matcher::new(proto_db_a, proto_db_b);
 
-    // TODO: Loop until no more matches are found
-    matcher.static_match("SingleField");
-    matcher.static_match("TestMessage");
+    // Run match loop until settled
+    // TODO: Maybe can optimize using a dependency graph?
+    // Would need to make sure to include field names in the dependency graph as well since those can cross-reference
+    loop {
+        let mut did_resolve = false;
+
+        did_resolve |= matcher.full_static_match("SingleField");
+        did_resolve |= matcher.full_static_match("TestMessage");
+
+        if !did_resolve {
+            break;
+        }
+    }
 
     let name_translation = matcher.into_db_b().generate_nametranslation();
 
@@ -108,7 +119,22 @@ impl Matcher {
         (message_a, message_b)
     }
 
-    fn static_match(&mut self, message_name: &str) {
+    fn full_static_match(&mut self, message_name: &str) -> bool {
+        let mut did_resolve = false;
+        loop {
+            let attempt = self.static_match(message_name);
+
+            if !attempt {
+                return did_resolve;
+            }
+
+            if attempt {
+                did_resolve = true;
+            }
+        }
+    }
+
+    fn static_match(&mut self, message_name: &str) -> bool {
         let message_a = self.proto_db_a.get_message(message_name).unwrap();
         let message_b = self.proto_db_b.get_message(message_name).unwrap();
 
@@ -124,6 +150,16 @@ impl Matcher {
 
         // TODO: Even when we have a strong match, we should probably still check sub-type structure 
 
+        let mut did_resolve = false;
+
+        macro_rules! resolve {
+            ($a:expr, $b:expr) => {
+                if $a.try_resolve_in(&self.proto_db_a, &mut self.proto_db_b, &$b).is_ok() {
+                    did_resolve = true;
+                }
+            };
+        }
+
         // Check by weak type first
         for (type_name, fields_b) in &fields_by_strong_type_b {
             if let Some(fields_a_weak) = fields_by_weak_type_a.get(&WeakProtoFieldKind::from(*type_name)) {
@@ -134,7 +170,7 @@ impl Matcher {
                         println!("Matched unique fields by weak type:");
                         println!("  {} -> {}", dbg!(&self.proto_db_a, fields_a_weak[0].name), dbg!(&self.proto_db_b, fields_b[0].name));
 
-                        fields_a_weak[0].try_resolve_in(&self.proto_db_a, &mut self.proto_db_b, &fields_b[0]).log_if_err();
+                        resolve!(fields_a_weak[0], fields_b[0]);
 
                         continue;
                     }
@@ -169,7 +205,7 @@ impl Matcher {
                                 // Direct match
                                 println!("Direct match: {}", dbg!(&self.proto_db_a, a_chunks[0]));
 
-                                a_chunks[0][0].try_resolve_in(&self.proto_db_a, &mut self.proto_db_b, &fields_b[0]).log_if_err();
+                                resolve!(a_chunks[0][0], fields_b[0]);
                             } else {
                                 // Can resolve type, but field names can only be resolved by data-match
                                 println!("Occurrence match requires data-match: {}", dbg!(&self.proto_db_a, a_chunks[0]));
@@ -177,11 +213,35 @@ impl Matcher {
                                 // Only need to resolve first field's type since they are all the same type
                                 let first_field = &a_chunks[0][0];
                                 let b_type = fields_b[0].field_type.inner_type();
-                                first_field.field_type.inner_type().try_resolve_in(&self.proto_db_a, &mut self.proto_db_b, &b_type).log_if_err();
+                                
+                                resolve!(first_field.field_type.inner_type(), b_type);
                             }
                         } else {
                             // TODO: If type names are resolved, we can try to match based on that
-                            
+                            let b_fields_type = fields_b[0].field_type;
+                            for a_chunk in a_chunks {
+                                let a_fields_type = a_chunk[0].field_type;
+                                
+                                // TODO: Can maybe try resolve in negative case (1 resolved, 1 not resolved << Matching)
+                                // Ex:
+                                //   TypeA a_field = 1;
+                                //   TypeB b_field = 3;
+                                //
+                                //   TypeA unknown1 = 4;
+                                //   UNK_T unknown3 = 6; << Can be resolved
+                                //
+                                // Theoretically it should resolve on loop, but as an optimization we should detect this
+                                
+                                if a_fields_type.eq_resolved_type(&self.proto_db_a, &b_fields_type, &self.proto_db_b) {
+                                    if len_b == 1 {
+                                        println!("Matched by resolved type: {}", dbg!(&self.proto_db_a, a_chunk));
+                                        resolve!(a_chunk[0], fields_b[0]);
+                                    } else {
+                                        println!("Matched by resolved type, but still ambiguous, requires data-match: {}", dbg!(&self.proto_db_a, a_chunk));
+                                    }
+                                }
+                            }
+
                             // TODO: When ambiguous, try to match subtype structures to resolve (only if structures are unique)
                             //       For now, we should not allow variation in structure for resolution. 
                             //       In the future, we can maybe implement confidence-based fuzzy match for sub-structures
@@ -201,6 +261,8 @@ impl Matcher {
                 println!("Found field(s) with new type in b: {}", dbg!(&self.proto_db_b, fields_b));
             }
         }
+
+        return did_resolve;
     }
 
     fn group_fields_by_type(&self, fields: &[ProtoField]) -> HashMap<ProtoFieldKind, Vec<ProtoField>> {
